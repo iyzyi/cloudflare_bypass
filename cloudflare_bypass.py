@@ -1,5 +1,10 @@
 from DrissionPage import ChromiumPage, ChromiumOptions
 import requests
+import time
+import cv2
+import numpy as np
+import pyautogui
+from image import image_search
 
 
 class CloudflareBypass():
@@ -10,13 +15,21 @@ class CloudflareBypass():
         'zh-cn': {'title': '请稍候'},
     }
 
+    image_path_dict = {
+        'zh-cn': 'img/zh-cn.jpg'
+    }
+    
     def __init__(self, browser_path, url):
         self.browser_path = browser_path
         self.url = url
         self.is_clicked = False
+        self.image_dict = {}
 
-        options = ChromiumOptions()
-        # options = ChromiumOptions().auto_port()
+        for key, value in self.image_path_dict.items():
+            self.image_dict[key] = cv2.imread(value)
+
+        # options = ChromiumOptions()
+        options = ChromiumOptions().auto_port()
         options.set_paths(self.browser_path)
 
         args = [
@@ -47,18 +60,17 @@ class CloudflareBypass():
         return True
 
 
-    def _click_button(self):
-        try:
-            print('try to bypass cloudflare...')
-            iframe = self.driver('xpath://div/iframe')
-            if iframe:
-                button = iframe.ele('css:input[type=checkbox]')
-                if button:
-                    print('click verify human button')
-                    button.click()
-                    self.is_clicked = True
-        except Exception:
-            pass
+    def _click_button(self, x, y):
+        print('click bypass cloudflare button')
+        
+        click_x = x + self.driver.rect.page_location[0] + 10
+        click_y = y + self.driver.rect.page_location[1] + 10
+        print(f'click_x: {click_x}, click_y: {click_y}')
+
+        pyautogui.moveTo(click_x, click_y, duration=0.5, tween=pyautogui.easeInElastic)
+        pyautogui.click()
+
+        self.is_clicked = True
 
 
     def _cookie_format_convert(self, driver_cookie):
@@ -72,8 +84,12 @@ class CloudflareBypass():
         self.driver.get(self.url)
 
         while not self._is_bypassed():
-            if not self.is_clicked:
-                self._click_button()
+            image = self.driver.get_screenshot(as_bytes='jpg')
+            image = cv2.imdecode(np.frombuffer(image, np.uint8), cv2.IMREAD_COLOR)
+            for target in self.image_dict.values():
+                coords = image_search(image, target)
+                if not self.is_clicked and len(coords) == 1:
+                    self._click_button(coords[0][0], coords[0][1])
 
         user_agent = self.driver.user_agent
         cookie = self.driver.get_cookies()
@@ -86,8 +102,8 @@ class CloudflareBypass():
 
 if __name__ == '__main__':
     # Supported browsers: Chromium-based (such as Chrome and Edge)
-    browser_path = r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
-    # browser_path = r'C:\Program Files\Google\Chrome\Application\chrome.exe'
+    # browser_path = r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
+    browser_path = r'C:\Program Files\Google\Chrome\Application\chrome.exe'
     # browser_path = r'/usr/bin/google-chrome'
 
     # Target site protected by Cloudflare
